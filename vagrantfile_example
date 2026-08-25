@@ -1,0 +1,132 @@
+# ============================================================================================================================================
+#
+# ____   _________    __________________    _____    _____________________________.___.____     ___________
+# \   \ /   /  _  \  /  _____/\______   \  /  _  \   \      \__    ___/\_   _____/|   |    |    \_   _____/
+#  \   Y   /  /_\  \/   \  ___ |       _/ /  /_\  \  /   |   \|    |    |    __)  |   |    |     |    __)_ 
+#   \     /    |    \    \_\  \|    |   \/    |    \/    |    \    |    |     \   |   |    |___  |        \
+#    \___/\____|__  /\______  /|____|_  /\____|__  /\____|__  /____|    \___  /   |___|_______ \/_______  /
+#                 \/        \/        \/         \/         \/              \/                \/        \/  
+#
+# ============================================================================================================================================
+
+# ============================================================================================================================================
+# VIRTUAL MACHINE SETTINGS
+# ============================================================================================================================================
+
+vm_provider                    = "virtualbox"
+vm_vagrant_box                 = "ubuntu/jammy64"
+vm_name                        = "projectbridged1"
+vm_group                       = "/vagrant_machines"
+vm_hostname                    = "projectbridged1"
+
+# ============================================================================================================================================
+# RESOURCE SETTINGS
+# ============================================================================================================================================
+
+vm_ram                         = 8192
+vm_cpus                        = 6
+vm_vram                        = "16"
+vm_gui                         = false
+
+# ============================================================================================================================================
+# NETWORK SETTINGS
+# ============================================================================================================================================
+
+# NIC1: NAT Adapter (Default for Vagrant SSH) (10.0.2.15)
+
+# NIC2: Host-only Adapter (Communication Host to Guest)
+
+nic2_enabled                   = false
+nic2_ip_address                = "192.168.1.10"
+
+# NIC3: Internal Network (Communication between Guests)
+
+nic3_intnet_enabled            = false
+nic3_intnet_name               = "10.0.1.0"
+
+# NIC4: Bridged Adapter (Connect to Host network with own IP)
+
+nic4_bridged_enabled           = true
+nic4_host_adapter              = "wlp0s20f3"
+
+# ============================================================================================================================================
+# STORAGE SETTINGS
+# ============================================================================================================================================
+
+# Primary Disk Settings
+
+vm_disk_size                   = "100GB"
+
+# Share Folder Settings
+
+override_default_share         = true
+
+shared_folder_1_enabled        = true
+shared_folder_1_host_location  = "../../git/project1"
+shared_folder_1_guest_location = "/vagrant"
+
+shared_folder_2_enabled        = false
+shared_folder_2_host_location  = "./shared2"
+shared_folder_2_guest_location = "/shared2"
+
+shared_folder_3_enabled        = false
+shared_folder_3_host_location  = "./shared3"
+shared_folder_3_guest_location = "/shared3"
+
+# ============================================================================================================================================
+# PROVISIONING SETTINGS
+# ============================================================================================================================================
+
+provision_enabled              = true
+provision_files = [
+  "./scripts/vm_scripts/init_apt.sh",
+  "./scripts/vm_scripts/init_ntp.sh",
+  "./scripts/vm_scripts/init_motd.sh",
+  "./scripts/vm_scripts/install_aws_cli.sh",
+  "./scripts/vm_scripts/install_azure_cli.sh",
+  "./scripts/vm_scripts/install_docker_ubuntu.sh",
+  "./scripts/vm_scripts/install_fastfetch_ubuntu.sh",
+  "./scripts/vm_scripts/install_git.sh"
+]
+
+# ============================================================================================================================================
+# VAGRANT MAIN
+# ============================================================================================================================================
+
+Vagrant.configure("2") do |config|
+  config.vm.define "vm" do |vm|
+    vm.vm.box = vm_vagrant_box
+    vm.vm.hostname = vm_hostname
+    vm.vm.network "private_network", ip: nic2_ip_address if nic2_enabled
+    if nic3_intnet_enabled
+      vm.vm.network "private_network", 
+        type: "dhcp", 
+        virtualbox__intnet: nic3_intnet_name 
+    end
+    if nic4_bridged_enabled
+      vm.vm.network "public_network",
+        type: "dhcp",
+        bridge: nic4_host_adapter
+    end
+    vm.vm.disk :disk, size: vm_disk_size, primary: true
+    vm.vm.synced_folder ".", "/vagrant", disabled: true if override_default_share
+    vm.vm.synced_folder shared_folder_1_host_location, shared_folder_1_guest_location if shared_folder_1_enabled
+    vm.vm.synced_folder shared_folder_2_host_location, shared_folder_2_guest_location if shared_folder_2_enabled
+    vm.vm.synced_folder shared_folder_3_host_location, shared_folder_3_guest_location if shared_folder_3_enabled
+    vm.vm.provider vm_provider do |vb|
+      vb.customize ["modifyvm", :id, "--vram", vm_vram]
+      vb.customize ["modifyvm", :id, "--groups", vm_group]
+      vb.name = vm_name
+      vb.memory = vm_ram
+      vb.cpus = vm_cpus
+      vb.gui = vm_gui
+    end
+    if provision_enabled
+      provision_files.each do |script|
+        vm.vm.provision "shell", path: script
+      end
+    end
+  end
+end
+
+# ============================================================================================================================================
