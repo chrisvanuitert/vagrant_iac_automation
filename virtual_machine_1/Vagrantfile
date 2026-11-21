@@ -1,0 +1,122 @@
+# ============================================================================================================================================
+#
+# ____   _________    __________________    _____    _____________________________.___.____     ___________
+# \   \ /   /  _  \  /  _____/\______   \  /  _  \   \      \__    ___/\_   _____/|   |    |    \_   _____/
+#  \   Y   /  /_\  \/   \  ___ |       _/ /  /_\  \  /   |   \|    |    |    __)  |   |    |     |    __)_ 
+#   \     /    |    \    \_\  \|    |   \/    |    \/    |    \    |    |     \   |   |    |___  |        \
+#    \___/\____|__  /\______  /|____|_  /\____|__  /\____|__  /____|    \___  /   |___|_______ \/_______  /
+#                 \/        \/        \/         \/         \/              \/                \/        \/  
+#
+# ============================================================================================================================================
+
+# ============================================================================================================================================
+# VIRTUAL MACHINE SETTINGS
+# ============================================================================================================================================
+
+vm_provider                    = "virtualbox"
+vm_vagrant_box                 = "ubuntu/jammy64"
+vm_name                        = "virtualmachine1"
+vm_group                       = "/vagrant_machines"
+vm_hostname                    = "virtualmachine1"
+
+# ============================================================================================================================================
+# RESOURCE SETTINGS
+# ============================================================================================================================================
+
+vm_ram                         = 8192
+vm_cpus                        = 6
+vm_vram                        = "16"
+vm_gui                         = false
+
+# ============================================================================================================================================
+# NETWORK SETTINGS
+# ============================================================================================================================================
+
+# NIC1: NAT Adapter (Default for Vagrant SSH) (10.0.2.15)
+
+# NIC2: Host-only Adapter (Communication Host to Guest)
+
+nic2_enabled                   = ENV["NIC2_ENABLED"]
+nic2_ip_address                = "192.168.1.10"
+
+# NIC3: Internal Network (Communication between Guests)
+
+nic3_intnet_enabled            = ENV["NIC3_INTNET_ENABLED"]
+nic3_intnet_name               = "10.0.1.0"
+
+# NIC4: Bridged Adapter (Connect to Host network with own IP)
+
+nic4_bridged_enabled           = ENV["NIC4_BRIDGED_ENABLED"]
+nic4_host_adapter              = "wlp0s20f3"
+
+# ============================================================================================================================================
+# STORAGE SETTINGS
+# ============================================================================================================================================
+
+# Primary Disk Settings
+
+vm_disk_size                   = "100GB"
+
+# Share Folder Settings
+
+override_default_share         = true
+shared_folder_enabled          = ENV["SHARED_FOLDER_ENABLED"]
+shared_folder_host_location    = ENV["PROJECT_DIR"]
+shared_folder_guest_location   = "/vagrant"
+
+# ============================================================================================================================================
+# PROVISIONING SETTINGS
+# ============================================================================================================================================
+
+provision_enabled              = true
+provision_files = [
+  "../shell_scripts/init/init_apt.sh",
+  "../shell_scripts/init/init_basics.sh",
+  "../shell_scripts/init/init_ntp.sh",
+  "../shell_scripts/init/init_motd.sh",
+  "../shell_scripts/install/install_fastfetch_ubuntu.sh",
+  "../shell_scripts/install/install_git.sh",
+  "../shell_scripts/install/install_docker_ubuntu.sh",
+  "../shell_scripts/install/install_node.sh",
+  "../shell_scripts/clean/clean_apt.sh",
+]
+
+# ============================================================================================================================================
+# VAGRANT MAIN
+# ============================================================================================================================================
+
+Vagrant.configure("2") do |config|
+  config.vm.define "vm" do |vm|
+    vm.vm.box = vm_vagrant_box
+    vm.vm.hostname = vm_hostname
+    vm.vm.network "private_network", ip: nic2_ip_address if nic2_enabled
+    if nic3_intnet_enabled
+      vm.vm.network "private_network", 
+        type: "dhcp", 
+        virtualbox__intnet: nic3_intnet_name 
+    end
+    if nic4_bridged_enabled
+      vm.vm.network "public_network",
+        type: "dhcp",
+        bridge: nic4_host_adapter
+    end
+    vm.vm.disk :disk, size: vm_disk_size, primary: true
+    vm.vm.synced_folder ".", "/vagrant", disabled: true if override_default_share
+    vm.vm.synced_folder shared_folder_host_location, shared_folder_guest_location if shared_folder_enabled && shared_folder_host_location
+    vm.vm.provider vm_provider do |vb|
+      vb.customize ["modifyvm", :id, "--vram", vm_vram]
+      vb.customize ["modifyvm", :id, "--groups", vm_group]
+      vb.name = vm_name
+      vb.memory = vm_ram
+      vb.cpus = vm_cpus
+      vb.gui = vm_gui
+    end
+    if provision_enabled
+      provision_files.each do |script|
+        vm.vm.provision "shell", path: script
+      end
+    end
+  end
+end
+
+# ============================================================================================================================================

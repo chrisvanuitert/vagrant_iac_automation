@@ -1,0 +1,4 @@
+# Vagrant machine state and generated files
+.vagrant/
+*.box
+*-cloudimg-console.log
