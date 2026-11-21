@@ -33,18 +33,29 @@ options=("${running_machines[@]}" "Stop ALL running machines")
 PS3=$'\n'"Select a machine to stop (1-${#options[@]}): "$'\n'
 COLUMNS=1
 
+VBOX_DIR="$(VBoxManage list systemproperties 2>/dev/null | awk -F': *' '/Default machine folder/{print $2}')"
+
+destroy_vm() {
+    local vm="$1"
+    local num="${vm##*_}"
+    echo "Stopping $vm..."
+    (cd "$SCRIPT_DIR/$vm" && vagrant destroy -f)
+    if [ -n "$VBOX_DIR" ] && ! VBoxManage list vms 2>/dev/null | grep -q "\"virtualmachine${num}\""; then
+        rm -rf "$VBOX_DIR/vagrant_machines/virtualmachine${num}"
+    fi
+}
+
 select choice in "${options[@]}"; do
     if [ "$choice" = "Stop ALL running machines" ]; then
         echo ""
         for vm in "${running_machines[@]}"; do
-            echo "Stopping $vm..."
-            (cd "$SCRIPT_DIR/$vm" && vagrant destroy -f)
+            destroy_vm "$vm"
         done
         echo -e "\nAll running machines stopped."
         break
     elif [ -n "$choice" ]; then
-        echo -e "\nStopping $choice..."
-        (cd "$SCRIPT_DIR/$choice" && vagrant destroy -f)
+        echo ""
+        destroy_vm "$choice"
         echo -e "\n$choice stopped."
         break
     else

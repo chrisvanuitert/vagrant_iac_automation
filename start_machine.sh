@@ -116,6 +116,13 @@ echo -e "\nLaunching virtual_machine_${VM_NUM} | Network: ${NET_LABEL} | Mode: $
 
 cd "$VM_DIR" || exit 1
 clear && vagrant destroy -f
+
+# Remove leftover VirtualBox backup folder (e.g. *-1.19-linux.vbox) that blocks --groups rename
+VBOX_DIR="$(VBoxManage list systemproperties 2>/dev/null | awk -F': *' '/Default machine folder/{print $2}')"
+if [ -n "$VBOX_DIR" ] && ! VBoxManage list vms 2>/dev/null | grep -q "\"virtualmachine${VM_NUM}\""; then
+    rm -rf "$VBOX_DIR/vagrant_machines/virtualmachine${VM_NUM}"
+fi
+
 clear && vagrant up && {
     trap - INT TERM
     clear && vagrant ssh
